@@ -205,7 +205,55 @@ UPDATE users SET first_name = split_part(name, ' ', 1); -- postgresql
     - 속성 그래프 모델
     - 트리플 저장소 모델
 
+- 그래프형 데이터 모델은 코다실(네트워크 모델)과는 다르다.
+
+    - 코다실에서 특정 레코드를 탐색하는 방법은 접근 경로 중 하나를 탐색하는 방식이다.
+    - 그래프 데이터베이스는 고유 ID를 가지고 있어 정점을 직접 참조하거나 색인을 이용할 수 있다.
+
 ### 속성 그래프 모델
 
 - 속성 그래프 모델은 정점과 간선으로 구성된다.
-- 정점은 식별자 / 유출 간선 집합 / 유입 간선 집합 
+- 정점은 `식별자 / 유출 간선 집합 / 유입 간선 집합 / 속성 컬랙션(키-값 쌍)`
+- 간선은 `식별자 / 꼬리 정점(시작) / 머리 정점(끝) / 레이블 / 속성 컬랙션(키-값 쌍)`
+- 속성 컬랙션은 스키마가 없어 많은 유연성을 제공한다.
+- postgres에서 이렇게 구현할 수 있다.
+    ```sql
+    CREATE TABLE vertices (
+        vertex_id interger PRIMARY KEY,
+        properties json
+    );
+
+    CREATE TABLE edges (
+        edge_id integer PRIMARY KEY,
+        tail_vertex integer REFERENCES vertices (vertex_id),
+        head_vertex integer REFERENCES vertices (vertex_id),
+        label text,
+        properties json
+    );
+    ```
+
+### 사이퍼 질의 언어
+
+- 사이퍼는 속성 그래프를 위한 선언형 질의 언어다.
+- 각 정점에는 이름이 들어가고 이 이름과 화살표를 사용해 정점간 간선을 만들 수 있다.
+```cypher
+CREATE
+    (KOREA:Location {name:'한국', type:'country'}),
+    (JEJU:Location  {name:'제주', type: 'island'}),
+    (ejun0:Person   {name:'준영'}),
+    (JEJU) -[:WITHIN]-> (KOREA),
+    (ejun0) -[:BORN_IN]-> (JEJU) -- 어? 아닌데
+```
+- MATCH 문을 이용해 *한국에서 일본으로 이민온 모든 사람들의 이름찾기* 같은것도 할 수 있다.
+- 질의를 하면 모든 사람들의 정점부터 출발해서 알맞는 정점(한국, 일본)을 찾는다.
+- 개수에 따라서 도착 정점에서 거꾸로 출발할 수도 있다. (최적화)
+```cypher
+MATCH
+    (person) -[:BORN_IN]-> () -[:WITHIN*0...]-> (kr:Location {name: '한국'})
+    (person) -[:LIVES_IN]-> () -[:WITHIN*0...]-> (jp:Location {name: '일본'})
+RETURN person.name
+```
+
+### SQL의 그래프 질의
+
+- 
